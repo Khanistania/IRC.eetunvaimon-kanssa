@@ -20,8 +20,26 @@ def receive_messages():
 thread = threading.Thread(target=receive_messages, daemon=True)
 thread.start()
 
+# Lists
+colors = {
+    "Light Aqua": 11,
+    "Light Blue": 9,
+    "Yellow": 6,
+    "Bright White": 15,
+    "Light Purple": 13,
+    "Red": 4
+}
+
+def colorchoise():
+    print("Choose a color for your username:")
+    
+    for color, color_name in enumerate(color.keys()):
+        print(f"{color}. {color_name}")
+
 while True:
-    msg = input("> ")
+    name = input("Choose your username: ")
+    
+    msg = input(f"{name} > ")
     if msg.lower() == 'exit':
         break
     client.sendall(msg.encode())
