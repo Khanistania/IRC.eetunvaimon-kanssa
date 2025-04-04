@@ -17,5 +17,7 @@
 
 -   *Aika arvio noin 30min-1h*
     
+-- Tehtiin client puolelle käyttäjän nimivalinta sekä värivalinta, ne ovat molemmat client puolella     valmiita. Aikaa meni noin 2.5h--
+
 
 
