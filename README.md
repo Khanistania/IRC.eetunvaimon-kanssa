@@ -1,6 +1,10 @@
 # IRC.eetunvaimon-kanssa
 
 
+# VIIMEKSI TEHTY VALMIIKSI
+
+- Server ja client korjattu siten että värit, kirjautuminen ja chatti näkyy molemmille, TOIMII, kanavat ja adminit ja modit tehty mutta ei voi vielä käyttää.
+
 
 
 
@@ -26,20 +30,12 @@
 
 - Chat kanavat 
 
-- Roolit moderaatiointiin
-
-- Komentoja esimerkiksi /kick, /list, /msg 
-
-- Kirjautuminen
-
-- Networking toimimaan.
-
-- Taustaväri toimimaan (muokkaa siten että admin voi vaihtaa kanavien taustan väriä)
+- Komennot ja admin jutut ei ole rekisteröity mutta pystyy valitsemaan client puolella
 
 - Admin tunnukset
 
 - kolme eri käyttäjää joista yksi on admini
 
-- Yksi käyttäjä voi olla aktiivisena osoitteen perusteella 
+
 
 
