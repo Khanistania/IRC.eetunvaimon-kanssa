@@ -3,12 +3,15 @@ import threading
 import re
 
 # ===== NETWORK CONFIGURATION =====
-HOST = "127.0.0.1"
-PORT = 6667
+HOST = "10.232.2.253"
+PORT = 6668
 
 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-client.connect((HOST, PORT))
-
+try:
+    client.connect((HOST, PORT))
+except ConnectionRefusedError:
+    print("Error: oh nigga u gay")
+    exit(1)
 # ===== MESSAGE RECEIVING THREAD =====
 def receive_messages():
     while True:

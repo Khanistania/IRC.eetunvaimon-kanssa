@@ -30,5 +30,16 @@
 
 - Komentoja esimerkiksi /kick, /list, /msg 
 
+- Kirjautuminen
+
+- Networking toimimaan.
+
+- Taustaväri toimimaan (muokkaa siten että admin voi vaihtaa kanavien taustan väriä)
+
+- Admin tunnukset
+
+- kolme eri käyttäjää joista yksi on admini
+
+- Yksi käyttäjä voi olla aktiivisena osoitteen perusteella 
 
 
