@@ -24,7 +24,7 @@ def receive_messages(client_socket):
             data = client_socket.recv(1024).decode()
             if not data:
                 print("\nServer disconnected. Press Enter to exit...")
-                os._exit(1)
+                sys.exit()
                 
             buffer += data
             while '\n' in buffer:
@@ -39,13 +39,18 @@ def receive_messages(client_socket):
                         print(f"\nError: {response.get('message')}\n> ", end="", flush=True)
                     elif response.get('action') == 'system':
                         print(f"\nSystem: {response.get('message')}\n> ", end="", flush=True)
+                    elif response.get('action') == 'register':
+                        if response.get('status') == 'success':
+                            print(f"\nRegistration successful! Welcome {response.get('username')}!")
+                        else:
+                            print(f"\nRegistration error: {response.get('message')}")
                         
                 except json.JSONDecodeError:
                     print("\nInvalid message from server\n> ", end="", flush=True)
                     
         except Exception as e:
             print(f"\nConnection error: {e}")
-            os._exit(1)
+            sys.exit()
 
 # Create socket and connect
 client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -84,14 +89,14 @@ def choose_action():
 def get_valid_username():
     """Get a valid username from user"""
     while True:
-        name = input("Choose your username (a-z, 0-9, max 12 chars): ").strip()
-        if len(name) > 12:
+        username = input("Choose your username (a-z, 0-9, max 12 chars): ").strip()
+        if len(username) > 12:
             print("Username must be 12 letters or less")
             continue
-        elif not re.match("^[a-zA-Z0-9]+$", name):
+        elif not re.match("^[a-zA-Z0-9]+$", username):
             print("Username can't have special characters.")
             continue
-        return name
+        return username
 
 def choose_color():
     """Let user choose a color"""
@@ -109,60 +114,84 @@ def choose_color():
         except ValueError:
             print("Please enter a valid number")
 
-def send_json(data):
-    """Helper function to send JSON data"""
-    debug_print(f"Sending: {data}")
-    client_socket.sendall((json.dumps(data) + '\n').encode())
+def send_json(sock, data):
+    """Safely send JSON data to a specific socket"""
+    try:
+        payload = json.dumps(data) + '\n'
+        sock.sendall(payload.encode())
+        debug_print(f"Sent to {sock.getpeername()}: {data}")
+        return True
+    except (ConnectionResetError, BrokenPipeError):
+        debug_print(f"Connection lost with {sock.getpeername()}")
+        return False
+    except Exception as e:
+        debug_print(f"Send error: {e}")
+        return False
 
 def register():
     """Handle user registration"""
     while True:
-        name = get_valid_username()
+        username = get_valid_username()
         password = input("Choose a password: ").strip()
         color_code = choose_color()
 
+
         register_data = {
             'action': 'register',
-            'username': name,
+            'username': username,
             'password': password,
             'color': color_code
         }
         
-        send_json(register_data)
+        send_json(client_socket, register_data)
         
-        try:
-            # Wait for response
-            time.sleep(0.5)  # Small delay for server processing
-            return name, color_code
+        try:            
+            response = json.loads(client_socket.recv(1024).decode())
+            
+            if response.get('status') == 'success':
+                print(f"\nRegistering succesful, welcome {username}.")
+                return username, color_code
+            else:
+                print(f"\nError: {response.get('message')}")
+                if not response.get('retry', False):
+                    return None
         except Exception as e:
             print(f"\nError during registration: {e}")
             return None
 
 def login():
     """Handle user login"""
-    while True:
-        name = input("\nUsername: ").strip()
+    attempts = 0
+    while attempts < 3:
+        username = input("\nUsername: ").strip()
         password = input("Password: ").strip()
 
-        login_data = {
+        send_json(client_socket,{
             'action': 'login',
-            'username': name,
+            'username': username,
             'password': password
-        }
-        
-        send_json(login_data)
+        })
         
         try:
-            # Wait for response
-            time.sleep(0.5)
-            return name, 15  # Default color if not provided
+            response = json.loads(client_socket.recv(1024).decode())
+            
+            if response.get('status') == 'success':
+                color = response.get('color', 15)  # Use server-provided color
+                print(f"\nLogin successful! Welcome {username}!")
+                return username, color
+            else:
+                print(f"\nError: {response.get('message')}")
+                attempts += 1
+                
         except Exception as e:
-            print(f"\nError during login: {e}")
-            return None
-
+            print(f"\nConnection error: {e}")
+            attempts += 1
+    
+    print("Too many failed attempts. Please try again later.")
+    return None
 # ===== CHAT FUNCTIONALITY =====
 
-def chat_loop(username, color_code):
+def chat_loop(username, color_code=15):
     """Main chat loop after successful login/registration"""
     print("\nType your messages below. Type '/exit' to quit.")
     print("To join a channel: '/join #channelname'")
@@ -199,7 +228,7 @@ def chat_loop(username, color_code):
                 'action': 'message' if not msg.startswith('/') else 'command',
                 'message': msg
             }
-            send_json(message_data)
+            send_json(client_socket, message_data)
             
         except KeyboardInterrupt:
             print("\nUse '/exit' to quit properly")

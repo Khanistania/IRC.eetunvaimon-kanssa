@@ -4,6 +4,7 @@ import socket
 import threading
 from collections import defaultdict
 import hashlib
+import re
 
 HOST = '10.232.2.253'  # Listen on all interfaces
 PORT = 6668
@@ -19,15 +20,33 @@ authenticated_users = {}
 client_colors = {}
 
 USERS_FILE = 'users.json'
-if os.path.exists(USERS_FILE):
-    with open(USERS_FILE, 'r') as f:
-        users = json.load(f)
-else:
-    users = {}
 
+def load_users():
+    """Safely load users from JSON file"""
+    if not os.path.exists(USERS_FILE):
+        return {}
+    
+    try:
+        with open(USERS_FILE, 'r') as f:
+            # Check if file is empty
+            if os.path.getsize(USERS_FILE) == 0:
+                return {}
+            return json.load(f)
+    except (json.JSONDecodeError, IOError) as e:
+        print(f" Error loading users: {e} - Starting with empty database")
+        return {}
+    
+users = load_users
+if not isinstance(users, dict):  # Ensure it's always a dictionary
+    print(" Invalid user data format - Resetting to empty database")
+    users = {}
+    
 def save_users():
-    with open(USERS_FILE, 'w') as f:
-        json.dump(users, f)
+    try:
+        with open(USERS_FILE, 'w') as f:
+            json.dump(users, f, indent=2)
+    except Exception as e:
+        print(f"Couldnt save user data {e}")
 
 def hash_password(pw):
     return hashlib.sha256(pw.encode()).hexdigest()
@@ -70,32 +89,59 @@ def handle_client(conn, addr):
                     data = json.loads(line)
                     action = data.get('action')
 
+                    # --- Registration ---
                     if action == 'register':
                         username = data.get('username', '').strip()
                         password = data.get('password', '').strip()
                         color = data.get('color', 15)
-
-                        if not username or not password:
-                            send_json(conn, {'status': 'error', 'message': 'Missing fields'})
-                            continue
-
-                        if username in users:
-                            send_json(conn, {'status': 'error', 'message': 'Username taken'})
-                        else:
-                            users[username] = {
-                                'password': hash_password(password),
-                                'color': color
-                            }
-                            save_users()
-                            authenticated_users[conn] = username
-                            client_colors[conn] = color
+                        
+                        # Validate username
+                        if len(username) > 12:
                             send_json(conn, {
-                                'status': 'success',
-                                'message': 'Registration complete',
-                                'username': username,
-                                'color': color
+                                'status': 'error',
+                                'message': 'Username must be 12 chars or less.',
+                                'retry': True
                             })
+                            continue
+                        elif not re.match("^[a-zA-Z0-9]+$", username):
+                            send_json(conn, {
+                                'status': 'error',
+                                'message': 'Username can only contain letters and numbers.',
+                                'retry': True
+                            })
+                            continue
+                        try:
+                            if username in users:
+                                send_json(conn, {
+                                    'status': 'error',
+                                    'message': 'Username taken. Use a unique username.',
+                                    'retry': True
+                                })
+                                continue
+                        except Exception as e:
+                            print(f" Error checking username: {e}")
+                            send_json(conn, {
+                                'status': 'error',
+                                'message': 'Server error during registration'
+                            })
+                            continue
+                        
+                        # Register user
+                        users[username] = {
+                            'password': hash_password(password),
+                            'color': color
+                        }
+                        save_users()
+                        authenticated_users[conn] = username
+                        client_colors[conn] = color
+                        send_json(conn, {
+                            'status': 'success',
+                            'message': 'Registration complete',
+                            'username': username,
+                            'color': color
+                        })
 
+                    # --- Login ---
                     elif action == 'login':
                         username = data.get('username', '').strip()
                         password = data.get('password', '').strip()
@@ -111,20 +157,31 @@ def handle_client(conn, addr):
                                 'color': client_colors[conn]
                             })
                         else:
-                            send_json(conn, {'status': 'error', 'message': 'Invalid credentials'})
+                            send_json(conn, {
+                                'status': 'error', 
+                                'message': 'Invalid credentials'
+                            })
 
+                    # --- Messaging ---
                     elif action == 'message':
                         if conn not in authenticated_users:
-                            send_json(conn, {'status': 'error', 'message': 'Not authenticated'})
+                            send_json(conn, {
+                                'status': 'error', 
+                                'message': 'Not authenticated'
+                            })
                             continue
 
                         message = data.get('message', '').strip()
                         if message:
                             broadcast_message(conn, message)
 
+                    # --- Commands ---
                     elif action == 'command':
                         if conn not in authenticated_users:
-                            send_json(conn, {'status': 'error', 'message': 'Not authenticated'})
+                            send_json(conn, {
+                                'status': 'error', 
+                                'message': 'Not authenticated'
+                            })
                             continue
 
                         cmd = data.get('message', '').strip().lower()
@@ -150,7 +207,10 @@ def handle_client(conn, addr):
                                     })
 
                 except json.JSONDecodeError:
-                    send_json(conn, {'status': 'error', 'message': 'Invalid JSON'})
+                    send_json(conn, {
+                        'status': 'error', 
+                        'message': 'Invalid JSON'
+                    })
 
     except (ConnectionResetError, BrokenPipeError):
         pass
@@ -163,6 +223,8 @@ def handle_client(conn, addr):
         conn.close()
         print(f"Connection closed: {addr}")
 
+
+# Server loop
 print(f"Server running on {HOST}:{PORT}")
 while True:
     conn, addr = server.accept()

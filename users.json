@@ -1,1 +1,6 @@
-{"haakkus": {"password": "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4", "color": 6}, "2": {"password": "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35", "color": 4}, "hakan": {"password": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b", "color": 4}, "moi": {"password": "114bd151f8fb0c58642d2170da4ae7d7c57977260ac2cc8905306cab6b2acabc", "color": 4}, "mo": {"password": "f4a4ce5fa6340a35aa5db0b4b6d31a6fbaa6052356460dbb0537657d803f5be2", "color": 11}, "fds": {"password": "827ade3254c72ae811201b418766d9a8802e91b029d95cc9de2f0169274aedd7", "color": 4}, "hei": {"password": "f9d1af62d004d4da648929bc7dde552685979d6e6a78dc8f9b64eb08e9c4ccb7", "color": 11}, "huh": {"password": "e48510d1ff85568d5e2c6e496cf448ad0ea9c8f25332cdbfc8528346cd9bd785", "color": 6}, "gaga": {"password": "d95d5d9a4237845e5baebfa41c52ab0f49f48d98a5681d6745967a88cbdb8942", "color": 11}, "as": {"password": "f4bf9f7fcbedaba0392f108c59d8f4a38b3838efb64877380171b54475c2ade8", "color": 4}, "homo": {"password": "70aafb4266950c0d17c383c4aac35d9f52b14414cd0b66cdc4e8c45f9da2f656", "color": 6}, "jas": {"password": "094fbbc949203f3aefd570029b15dc91c1eff906b53393c68416f0732599c126", "color": 11}, "lkajs": {"password": "27f56115378ea751cda52aae1b163f2342adcd15fb9342227bbc191d1dc83611", "color": 4}}
+{
+  "rakan": {
+    "password": "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4",
+    "color": 4
+  }
+}
