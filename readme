@@ -1,6 +1,10 @@
+@ -1,6 +1,41 @@
 # IRC.eetunvaimon-kanssa
+moi riku 
 
+git config --global user.name " "
 
+git config --global user.email " "
 # VIIMEKSI TEHTY VALMIIKSI
 
 - Server ja client korjattu siten että värit, kirjautuminen ja chatti näkyy molemmille, TOIMII, kanavat ja adminit ja modit tehty mutta ei voi vielä käyttää.
@@ -35,7 +39,6 @@
 - Admin tunnukset
 
 - kolme eri käyttäjää joista yksi on admini
-
 
 
 
