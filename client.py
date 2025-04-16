@@ -3,6 +3,7 @@ import threading
 import json
 import re
 import sys
+import msvcrt
 
 # ===== NETWORK CONFIGURATION =====
 HOST = "10.232.2.253"  # Change to your server IP if needed
@@ -10,6 +11,9 @@ PORT = 6668
 
 # Debug mode - set to False in production
 DEBUG = False
+
+current_username = None
+current_color_code = 15
 
 def debug_print(message):
     if DEBUG:
@@ -24,7 +28,7 @@ registration_lock = threading.Lock()
 
 def receive_messages(client_socket):
     """Receive messages from the server"""
-    global registration_response, login_response
+    global registration_response, login_response, current_username, current_color_code
     buffer = ""
     while True:
         try:
@@ -36,10 +40,12 @@ def receive_messages(client_socket):
             buffer += data
             while '\n' in buffer:
                 line, buffer = buffer.split('\n', 1)
-                print(f"DEBUG: Raw data received: {line}")  # Lisää tämä: näyttää raakadatan
+                if DEBUG:
+                    print(f"DEBUG: Raw data received: {line}")
                 try:
                     response = json.loads(line)
-                    print(f"DEBUG: Parsed response: {response}")  # Lisää tämä: näyttää käsitellyn JSONin
+                    if DEBUG:
+                        print(f"DEBUG: Parsed response: {response}")
                     debug_print(f"Received: {response}")
                     
                     # Rekisteröinti
@@ -56,14 +62,32 @@ def receive_messages(client_socket):
                     
                     # Muut viestit
                     elif response.get('status') == 'error':
-                        print(f"\nError: {response.get('message')}\n> ", end="", flush=True)
+                        print(f"\rError: {response.get('message')}")
+                        if current_username:
+                            sys.stdout.write(f"\033[1;38;5;{current_color_code}m{current_username} >\033[0m ")
+                            sys.stdout.flush()
                     elif response.get('action') == 'system':
-                        print(f"\nSystem: {response.get('message')}\n> ", end="", flush=True)
+                        print(f"\rSystem: {response.get('message')}")
+                        if current_username:
+                            sys.stdout.write(f"\033[1;38;5;{current_color_code}m{current_username} \033[0m ")
+                            sys.stdout.flush()
                     elif response.get('action') == 'message':
-                        print(f"\n{response.get('from')}: {response.get('message')}\n> ", end="", flush=True)
+                        from_user = response.get('from')
+                        message = response.get('message')
+                        color_code = response.get('color', 15)  # Oletusväri, jos ei määritelty
+                        colored_username = f"\033[1;38;5;{color_code}m{from_user} >\033[0m"
+                        # Tulosta viesti välilyönnillä >-merkin sijaan
+                        print(f"\r{colored_username} {message}")
+                        # Tulosta käyttäjän oma prompt uudelleen
+                        if current_username:
+                            sys.stdout.write(f"\033[1;38;5;{current_color_code}m{current_username} >\033[0m ")
+                            sys.stdout.flush()
                         
                 except json.JSONDecodeError:
-                    print("\nInvalid message from server\n> ", end="", flush=True)
+                    print("\rInvalid message from server")
+                    if current_username:
+                        sys.stdout.write(f"\033[1;38;5;{current_color_code}m{current_username}\033[0m > ")
+                        sys.stdout.flush()
                     
         except Exception as e:
             print(f"\nConnection error: {e}")
@@ -131,11 +155,33 @@ def choose_color():
         except ValueError:
             print("Please enter a valid number")
 
+def get_hidden_password(prompt):
+    """Get password with asterisks displayed for each character (Windows only)"""
+    print(prompt, end="", flush=True)
+    password = []
+    while True:
+        char = msvcrt.getch()  # Read a single keypress
+        char = char.decode('utf-8')
+        if char == '\r' or char == '\n':  # Enter key
+            print()  # Move to next line
+            break
+        elif char == '\b':  # Backspace
+            if password:
+                password.pop()  # Remove last character
+                sys.stdout.write('\b \b')  # Move cursor back, overwrite with space, move back again
+                sys.stdout.flush()
+        else:
+            password.append(char)
+            sys.stdout.write('*')  # Print asterisk
+            sys.stdout.flush()
+    return ''.join(password)
+
 def send_json(sock, data):
     """Safely send JSON data to a specific socket"""
     try:
         payload = json.dumps(data) + '\n'
-        print(f"DEBUG: Sending to server: {payload}")  # Lisää tämä: näyttää lähetetyn datan
+        if DEBUG:
+            print(f"DEBUG: Sending to server: {payload}")
         sock.sendall(payload.encode())
         debug_print(f"Sent to {sock.getpeername()}: {data}")
         return True
@@ -150,7 +196,7 @@ def register():
     global registration_response
     while True:
         username = get_valid_username()
-        password = input("Choose a password: ").strip()
+        password = get_hidden_password("Choose a password: ")
         color_code = choose_color()
 
         register_data = {
@@ -189,7 +235,7 @@ def login():
     
     while attempts < 3:
         username = input("\nUsername: ").strip()
-        password = input("Password: ").strip()
+        password = get_hidden_password("Password: ")
 
         if not send_json(client_socket, {
             'action': 'login',
@@ -198,12 +244,13 @@ def login():
         }):
             attempts += 1
             continue
-
-        print("DEBUG: Waiting for login response...")  # Lisää tämä: näyttää odotuksen alkamisen
-        login_event.wait(5)  # Pidennetty 5 sekuntiin, kuten aiemmin ehdotin
+        if DEBUG:
+            print("DEBUG: Waiting for login response...")
+        login_event.wait(5)
         
         with login_lock:
-            print(f"DEBUG: Login response received: {login_response}")  # Lisää tämä: näyttää vastauksen
+            if DEBUG:
+                print(f"DEBUG: Login response received: {login_response}")
             response = login_response
             login_event.clear()
             login_response = None
@@ -221,10 +268,13 @@ def login():
     
     print("Too many failed attempts.")
     return None
+
 # ===== CHAT FUNCTIONALITY =====
 
-# KORJAA ASIAKKAAN CHAT_LOOP
 def chat_loop(username, color_code=15):
+    global current_username, current_color_code
+    current_username = username
+    current_color_code = color_code
     print("\nType your messages below. Type '/exit' to quit.")
     print("To join a channel: '/join #channelname'")
     print("To leave current channel: '/leave'")
@@ -232,7 +282,7 @@ def chat_loop(username, color_code=15):
     
     while True:
         try:
-            prompt = f"\033[1;38;5;{color_code}m{username}\033[0m > "
+            prompt = f"\033[1;38;5;{color_code}m{username} >\033[0m "
             sys.stdout.write(prompt)
             sys.stdout.flush()
             msg = sys.stdin.readline().strip()

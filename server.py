@@ -5,6 +5,7 @@ import threading
 from collections import defaultdict
 import hashlib
 import re
+import time
 
 HOST = '10.232.2.253'  # Listen on all interfaces
 PORT = 6668
@@ -16,8 +17,13 @@ server.listen()
 
 channels = defaultdict(set)
 all_clients = set()
+session_lock = threading.Lock()
 authenticated_users = {}
 client_colors = {}
+active_sessions = {}
+users = {}
+
+DEBUG_MODE = False
 
 USERS_FILE = 'users.json'
 
@@ -71,6 +77,36 @@ def broadcast_message(sender_conn, message):
                 'message': message
             })
 
+def handle_login (data, conn):
+    username = data.get('username', '').strip()
+            
+    with session_lock:
+        if username in active_sessions:
+            return {
+                'action': 'login',
+                'status': 'error',
+                'message': 'Account already logged in'
+            }
+    user_data = users.get(username)
+    if not user_data or user_data['password']!= hash_password(data.get('password', '')):
+        return {
+            'action': 'login',
+            'status': 'error',
+            'message': 'Invalid credentials'
+        }
+
+    session_id = os.urandom(16).hex()
+        
+    return {
+        'action': 'login',
+        'status': 'success',
+        'session_id': session_id,
+        'message': 'Login successful', 
+        'username': username,
+        'color': user_data.get('color', 15)
+    }
+        
+
 def handle_client(conn, addr):
     print(f"New connection from {addr}")
     all_clients.add(conn)
@@ -85,18 +121,22 @@ def handle_client(conn, addr):
             buffer += data
             while '\n' in buffer:
                 line, buffer = buffer.split('\n', 1)
-                print(f"DEBUG: Raw data from {addr}: {line}")  # Lisää tämä: näyttää raakadatan
+                if DEBUG_MODE:
+                    print(f"DEBUG: Raw data from {addr}: {line}")  # Lisää tämä: näyttää raakadatan
                 try:
                     data = json.loads(line)
-                    print(f"DEBUG: Parsed data from {addr}: {data}")  # Lisää tämä: näyttää käsitellyn JSONin
                     action = data.get('action')
+                    
+                    if DEBUG_MODE:
+                        print(f"DEBUG: Parsed data from {addr}: {data}")  # Lisää tämä: näyttää käsitellyn JSONin
 
                     # --- Registration ---
                     if action == 'register':
                         username = data.get('username', '').strip()
                         password = data.get('password', '').strip()
                         color = data.get('color', 15)
-                        print(f"DEBUG: Register attempt - Username: {username}, Color: {color}")
+                        if DEBUG_MODE:
+                            print(f"DEBUG: Register attempt - Username: {username}, Color: {color}")
                         
                         # Validate username
                         if len(username) > 12:
@@ -150,31 +190,34 @@ def handle_client(conn, addr):
 
                     # --- Login ---
                     elif action == 'login':
+                        # Get credentials first
                         username = data.get('username', '').strip()
                         password = data.get('password', '').strip()
-                        print(f"DEBUG: Login attempt - Username: {username}")
+                        
+                        if DEBUG_MODE:
+                            print(f"DEBUG: Login attempt - Username: {username}")
 
-                        user_data = users.get(username)
-                        if user_data and user_data['password'] == hash_password(password):
+                        # Call login handler
+                        response = handle_login(data, conn)  # Changed to handle_login
+                        
+                        # Process response
+                        if response.get('status') == 'success':
+                            session_id = response['session_id']
+                            with session_lock:
+                                active_sessions[username] = {
+                                    'session_id': session_id,
+                                    'socket': conn,
+                                    'timestamp': time.time()
+                                }
                             authenticated_users[conn] = username
-                            client_colors[conn] = user_data.get('color', 15)
-                            response = {
-                                'action': 'login',  # Lisätään tämä
-                                'status': 'success',
-                                'message': 'Login successful',
-                                'username': username,
-                                'color': client_colors[conn]
-                            }
-                            print(f"DEBUG: Login successful - Sending: {response}")
-                            send_json(conn, response)
-                        else:
-                            response = {
-                                'action': 'login',  # Lisätään tämä
-                                'status': 'error', 
-                                'message': 'Invalid credentials'
-                            }
-                            print(f"DEBUG: Login failed - Sending: {response}")
-                            send_json(conn, response)
+                            client_colors[conn] = response.get('color', 15)
+                        
+                        # Send final response
+                        if DEBUG_MODE:
+                            status = "successful" if response['status'] == 'success' else "failed"
+                            print(f"DEBUG: Login {status} - Sending: {response}")
+                        send_json(conn, response)
+                        
                     # --- Messaging ---
                     elif action == 'message':
                         if conn not in authenticated_users:
@@ -231,8 +274,15 @@ def handle_client(conn, addr):
         # Clean up
         if conn in all_clients:
             all_clients.remove(conn)
-        authenticated_users.pop(conn, None)
+            
+        username = authenticated_users.pop(conn, None)
         client_colors.pop(conn, None)
+        
+        if username:
+            with session_lock:
+                if username in active_sessions:
+                    del active_sessions[username]
+        
         conn.close()
         print(f"Connection closed: {addr}")
 

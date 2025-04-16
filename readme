@@ -40,5 +40,14 @@ git config --global user.email " "
 
 - kolme eri käyttäjää joista yksi on admini
 
+**14.10**
 
+- Korjattiin chatti formattointia, Ja samalla myös se että kirjautuminen kahdella käyttäjällä ei ole enään ongelma.
+
+
+
+
+-JATKOA
+
+-channelit, komennot ja adminit toimimaan
 
