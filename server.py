@@ -158,11 +158,11 @@ def handle_client(conn, addr):
                         if user_data and user_data['password'] == hash_password(password):
                             authenticated_users[conn] = username
                             client_colors[conn] = user_data.get('color', 15)
+<<<<<<< HEAD
                             response = {
                                 'action': 'login',  # Lisätään tämä
-                                'status': 'success',
-                                'message': 'Login successful',
-                                'username': username,
+                            send_json(conn, {
+>>>>>>> 094f9ff17da006ad473cbc5ec1d1e9d3a0b6d479
                                 'color': client_colors[conn]
                             }
                             print(f"DEBUG: Login successful - Sending: {response}")

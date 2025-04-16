@@ -3,6 +3,10 @@ import threading
 import json
 import re
 import sys
+<<<<<<< HEAD
+=======
+import time
+>>>>>>> 094f9ff17da006ad473cbc5ec1d1e9d3a0b6d479
 
 # ===== NETWORK CONFIGURATION =====
 HOST = "10.232.2.253"  # Change to your server IP if needed
@@ -15,6 +19,7 @@ def debug_print(message):
     if DEBUG:
         print(f"DEBUG: {message}")
 
+<<<<<<< HEAD
 registration_event = threading.Event()
 login_event = threading.Event()
 login_response = None
@@ -25,6 +30,10 @@ registration_lock = threading.Lock()
 def receive_messages(client_socket):
     """Receive messages from the server"""
     global registration_response, login_response
+=======
+def receive_messages(client_socket):
+    """Receive messages from the server"""
+>>>>>>> 094f9ff17da006ad473cbc5ec1d1e9d3a0b6d479
     buffer = ""
     while True:
         try:
@@ -36,6 +45,7 @@ def receive_messages(client_socket):
             buffer += data
             while '\n' in buffer:
                 line, buffer = buffer.split('\n', 1)
+<<<<<<< HEAD
                 print(f"DEBUG: Raw data received: {line}")  # Lisää tämä: näyttää raakadatan
                 try:
                     response = json.loads(line)
@@ -55,12 +65,28 @@ def receive_messages(client_socket):
                             login_event.set()
                     
                     # Muut viestit
+=======
+                try:
+                    response = json.loads(line)
+                    debug_print(f"Received: {response}")
+                    
+                    if response.get('action') == 'message':
+                        print(f"\033[1;38;5;{response['color']}m{response['from']}: {response['message']}\033[0m")
+>>>>>>> 094f9ff17da006ad473cbc5ec1d1e9d3a0b6d479
                     elif response.get('status') == 'error':
                         print(f"\nError: {response.get('message')}\n> ", end="", flush=True)
                     elif response.get('action') == 'system':
                         print(f"\nSystem: {response.get('message')}\n> ", end="", flush=True)
+<<<<<<< HEAD
                     elif response.get('action') == 'message':
                         print(f"\n{response.get('from')}: {response.get('message')}\n> ", end="", flush=True)
+=======
+                    elif response.get('action') == 'register':
+                        if response.get('status') == 'success':
+                            print(f"\nRegistration successful! Welcome {response.get('username')}!")
+                        else:
+                            print(f"\nRegistration error: {response.get('message')}")
+>>>>>>> 094f9ff17da006ad473cbc5ec1d1e9d3a0b6d479
                         
                 except json.JSONDecodeError:
                     print("\nInvalid message from server\n> ", end="", flush=True)
@@ -135,7 +161,10 @@ def send_json(sock, data):
     """Safely send JSON data to a specific socket"""
     try:
         payload = json.dumps(data) + '\n'
+<<<<<<< HEAD
         print(f"DEBUG: Sending to server: {payload}")  # Lisää tämä: näyttää lähetetyn datan
+=======
+>>>>>>> 094f9ff17da006ad473cbc5ec1d1e9d3a0b6d479
         sock.sendall(payload.encode())
         debug_print(f"Sent to {sock.getpeername()}: {data}")
         return True
@@ -147,12 +176,20 @@ def send_json(sock, data):
         return False
 
 def register():
+<<<<<<< HEAD
     global registration_response
+=======
+    """Handle user registration"""
+>>>>>>> 094f9ff17da006ad473cbc5ec1d1e9d3a0b6d479
     while True:
         username = get_valid_username()
         password = input("Choose a password: ").strip()
         color_code = choose_color()
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> 094f9ff17da006ad473cbc5ec1d1e9d3a0b6d479
         register_data = {
             'action': 'register',
             'username': username,
@@ -160,6 +197,7 @@ def register():
             'color': color_code
         }
         
+<<<<<<< HEAD
         if not send_json(client_socket, register_data):
             return None
 
@@ -187,10 +225,32 @@ def login():
     global login_response
     attempts = 0
     
+=======
+        send_json(client_socket, register_data)
+        
+        try:            
+            response = json.loads(client_socket.recv(1024).decode())
+            
+            if response.get('status') == 'success':
+                print(f"\nRegistering succesful, welcome {username}.")
+                return username, color_code
+            else:
+                print(f"\nError: {response.get('message')}")
+                if not response.get('retry', False):
+                    return None
+        except Exception as e:
+            print(f"\nError during registration: {e}")
+            return None
+
+def login():
+    """Handle user login"""
+    attempts = 0
+>>>>>>> 094f9ff17da006ad473cbc5ec1d1e9d3a0b6d479
     while attempts < 3:
         username = input("\nUsername: ").strip()
         password = input("Password: ").strip()
 
+<<<<<<< HEAD
         if not send_json(client_socket, {
             'action': 'login',
             'username': username,
@@ -225,13 +285,57 @@ def login():
 
 # KORJAA ASIAKKAAN CHAT_LOOP
 def chat_loop(username, color_code=15):
+=======
+        send_json(client_socket,{
+            'action': 'login',
+            'username': username,
+            'password': password
+        })
+        
+        try:
+            response = json.loads(client_socket.recv(1024).decode())
+            
+            if response.get('status') == 'success':
+                color = response.get('color', 15)  # Use server-provided color
+                print(f"\nLogin successful! Welcome {username}!")
+                return username, color
+            else:
+                print(f"\nError: {response.get('message')}")
+                attempts += 1
+                
+        except Exception as e:
+            print(f"\nConnection error: {e}")
+            attempts += 1
+    
+    print("Too many failed attempts. Please try again later.")
+    return None
+# ===== CHAT FUNCTIONALITY =====
+
+def chat_loop(username, color_code=15):
+    """Main chat loop after successful login/registration"""
+>>>>>>> 094f9ff17da006ad473cbc5ec1d1e9d3a0b6d479
     print("\nType your messages below. Type '/exit' to quit.")
     print("To join a channel: '/join #channelname'")
     print("To leave current channel: '/leave'")
     print("To list channels: '/list'\n")
     
+<<<<<<< HEAD
     while True:
         try:
+=======
+    # Clear any pending data
+    client_socket.settimeout(0.1)
+    try:
+        while client_socket.recv(1024):
+            pass
+    except:
+        pass
+    client_socket.settimeout(None)
+    
+    while True:
+        try:
+            # Better input handling
+>>>>>>> 094f9ff17da006ad473cbc5ec1d1e9d3a0b6d479
             prompt = f"\033[1;38;5;{color_code}m{username}\033[0m > "
             sys.stdout.write(prompt)
             sys.stdout.flush()
@@ -245,6 +349,10 @@ def chat_loop(username, color_code=15):
                 print("\nGoodbye!")
                 sys.exit(0)
                 
+<<<<<<< HEAD
+=======
+            # Send message to server
+>>>>>>> 094f9ff17da006ad473cbc5ec1d1e9d3a0b6d479
             message_data = {
                 'action': 'message' if not msg.startswith('/') else 'command',
                 'message': msg
@@ -254,7 +362,11 @@ def chat_loop(username, color_code=15):
         except KeyboardInterrupt:
             print("\nUse '/exit' to quit properly")
         except Exception as e:
+<<<<<<< HEAD
             print(f"\nConnection error: {e}")
+=======
+            print(f"\nError: {e}")
+>>>>>>> 094f9ff17da006ad473cbc5ec1d1e9d3a0b6d479
             client_socket.close()
             sys.exit(1)
 
@@ -269,12 +381,20 @@ def main():
             result = register()
             if result:
                 username, color_code = result
+<<<<<<< HEAD
+=======
+                print(f"\nRegistration successful! Welcome {username}!")
+>>>>>>> 094f9ff17da006ad473cbc5ec1d1e9d3a0b6d479
                 chat_loop(username, color_code)
                 
         elif action == '2':  # Login
             result = login()
             if result:
                 username, color_code = result
+<<<<<<< HEAD
+=======
+                print(f"\nLogin successful! Welcome {username}!")
+>>>>>>> 094f9ff17da006ad473cbc5ec1d1e9d3a0b6d479
                 chat_loop(username, color_code)
                 
         elif action == '3':  # Exit
