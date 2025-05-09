@@ -4,6 +4,8 @@ import json
 import re
 import sys
 import msvcrt
+import os
+from collections import defaultdict
 
 # ===== NETWORK CONFIGURATION =====
 HOST = "10.232.2.253"  # Change to your server IP if needed
@@ -12,13 +14,13 @@ PORT = 6668
 # Debug mode - set to False in production
 DEBUG = False
 
+# Global state
 current_username = None
 current_color_code = 15
+current_channel = None  # Track current channel
+user_channels = set()   # Track all channels user is in
 
-def debug_print(message):
-    if DEBUG:
-        print(f"DEBUG: {message}")
-
+# Event and lock for server responses
 registration_event = threading.Event()
 login_event = threading.Event()
 login_response = None
@@ -26,9 +28,54 @@ login_lock = threading.Lock()
 registration_response = None
 registration_lock = threading.Lock()
 
+def show_channel_selection(available_channels):
+    print("\nAvailable Channels:")
+    for i, channel in enumerate(available_channels, 1):
+        print(f"{i}. {channel}")
+    
+    while True:
+        choice = input("\nEnter channel number to join (or 0 to skip): ")
+        if choice.isdigit():
+            channel_num = int(choice)
+            if 0 <= channel_num <= len(available_channels):
+                return available_channels[channel_num-1] if channel_num != 0 else None
+        print("Invalid input. Please enter a number.")
+
+def debug_print(message):
+    if DEBUG:
+        print(f"DEBUG: {message}")
+
+def clear_current_line():
+    """Clear the current line in terminal"""
+    try:
+        # Get terminal width safely with fallback
+        columns = os.get_terminal_size().columns
+    except (AttributeError, OSError):
+        columns = 80  # Default fallback width
+        
+    sys.stdout.write('\r' + ' ' * (columns - 1) + '\r')
+    sys.stdout.flush()
+
+def print_system_message(message):
+    """Print a system message without interfering with input prompt"""
+    clear_current_line()
+    print(f"\r\033[1;36mSystem:\033[0m {message}")
+    if current_username:
+        display_prompt()
+
+def display_prompt():
+    """Display the appropriate input prompt based on current state"""
+    if current_channel:
+        prompt = f"\033[1;38;5;{current_color_code}m{current_username} [{current_channel}]>\033[0m "
+    else:
+        prompt = f"\033[1;38;5;{current_color_code}m{current_username} >\033[0m "
+    sys.stdout.write(prompt)
+    sys.stdout.flush()
+
 def receive_messages(client_socket):
     """Receive messages from the server"""
-    global registration_response, login_response, current_username, current_color_code
+    global registration_response, login_response, current_username, current_color_code, current_channel, user_channels
+    
     buffer = ""
     while True:
         try:
@@ -48,46 +95,68 @@ def receive_messages(client_socket):
                         print(f"DEBUG: Parsed response: {response}")
                     debug_print(f"Received: {response}")
                     
-                    # Rekisteröinti
+                    # Registration response
                     if response.get('action') == 'register':
                         with registration_lock:
                             registration_response = response
                             registration_event.set()
                     
-                    # Kirjautuminen
+                    # Login response
                     elif response.get('action') == 'login':
                         with login_lock:
                             login_response = response
                             login_event.set()
                     
-                    # Muut viestit
+                    # Error messages
                     elif response.get('status') == 'error':
-                        print(f"\rError: {response.get('message')}")
-                        if current_username:
-                            sys.stdout.write(f"\033[1;38;5;{current_color_code}m{current_username} >\033[0m ")
-                            sys.stdout.flush()
+                        print_system_message(f"Error: {response.get('message')}")
+                    
+                    # System messages
                     elif response.get('action') == 'system':
-                        print(f"\rSystem: {response.get('message')}")
-                        if current_username:
-                            sys.stdout.write(f"\033[1;38;5;{current_color_code}m{current_username} \033[0m ")
-                            sys.stdout.flush()
+                        print_system_message(response.get('message'))
+                    
+                    # Channel messages
                     elif response.get('action') == 'message':
                         from_user = response.get('from')
                         message = response.get('message')
-                        color_code = response.get('color', 15)  # Oletusväri, jos ei määritelty
-                        colored_username = f"\033[1;38;5;{color_code}m{from_user} >\033[0m"
-                        # Tulosta viesti välilyönnillä >-merkin sijaan
-                        print(f"\r{colored_username} {message}")
-                        # Tulosta käyttäjän oma prompt uudelleen
-                        if current_username:
-                            sys.stdout.write(f"\033[1;38;5;{current_color_code}m{current_username} >\033[0m ")
-                            sys.stdout.flush()
+                        color_code = response.get('color', 15)
+                        channel = response.get('channel')
+                        
+                        # Format the message display
+                        if channel:
+                            prefix = f"\033[1;38;5;{color_code}m{from_user} [{channel}]>\033[0m"
+                        else:
+                            prefix = f"\033[1;38;5;{color_code}m{from_user} >\033[0m"
+                        
+                        clear_current_line()
+                        print(f"\r{prefix} {message}")
+                        display_prompt()
+                    
+                    # Private messages
+                    elif response.get('action') == 'private_message':
+                        from_user = response.get('from')
+                        message = response.get('message')
+                        color_code = response.get('color', 15)
+                        
+                        clear_current_line()
+                        print(f"\r\033[1;35mPM from {from_user}>\033[0m {message}")
+                        display_prompt()
+                    
+                    # Channel join/leave notifications
+                    elif response.get('action') == 'channel_update':
+                        channel = response.get('channel')
+                        if response.get('type') == 'join':
+                            user_channels.add(channel)
+                            if not current_channel:
+                                current_channel = channel
+                        elif response.get('type') == 'leave':
+                            user_channels.discard(channel)
+                            if current_channel == channel:
+                                current_channel = next(iter(user_channels), None)[0] if user_channels else None
+                        display_prompt()
                         
                 except json.JSONDecodeError:
-                    print("\rInvalid message from server")
-                    if current_username:
-                        sys.stdout.write(f"\033[1;38;5;{current_color_code}m{current_username}\033[0m > ")
-                        sys.stdout.flush()
+                    print_system_message("Invalid message from server")
                     
         except Exception as e:
             print(f"\nConnection error: {e}")
@@ -209,7 +278,6 @@ def register():
         if not send_json(client_socket, register_data):
             return None
 
-        # ODOTA 5 SEKUNTIA
         registration_event.wait(5)
         
         with registration_lock:
@@ -229,7 +297,7 @@ def register():
                 return None
 
 def login():
-    """Handle user login"""
+    """Handle user login with channel selection"""
     global login_response
     attempts = 0
     
@@ -244,8 +312,7 @@ def login():
         }):
             attempts += 1
             continue
-        if DEBUG:
-            print("DEBUG: Waiting for login response...")
+            
         login_event.wait(5)
         
         with login_lock:
@@ -261,6 +328,30 @@ def login():
             continue
             
         if response.get('status') == 'success':
+            # Show channel selection if available
+            available_channels = response.get('available_channels', [])
+            if available_channels:
+                print("\nAvailable Channels:")
+                for i, channel in enumerate(available_channels, 1):
+                    print(f"{i}. {channel}")
+                
+                while True:
+                    try:
+                        choice = input("\nEnter channel number to join (0 to skip): ").strip()
+                        if choice == '0':
+                            break
+                        channel_num = int(choice)
+                        if 1 <= channel_num <= len(available_channels):
+                            selected_channel = available_channels[channel_num-1]
+                            send_json(client_socket, {
+                                'action': 'command',
+                                'message': f'/join {selected_channel}'
+                            })
+                            break
+                        print(f"Please enter a number between 1 and {len(available_channels)}")
+                    except ValueError:
+                        print("Invalid input. Please enter a number.")
+
             return response.get('username'), response.get('color', 15)
         else:
             print(f"\nError: {response.get('message')}")
@@ -268,41 +359,116 @@ def login():
     
     print("Too many failed attempts.")
     return None
-
 # ===== CHAT FUNCTIONALITY =====
+
+def handle_command(command):
+    """Handle client-side commands"""
+    global current_channel
+    
+    parts = command.split()
+    cmd = parts[0].lower()
+    
+    if cmd == '/join' and len(parts) > 1:
+        channel = parts[1]
+        if not channel.startswith('#'):
+            channel = '#' + channel
+        send_json(client_socket, {
+            'action': 'command',
+            'message': f'/join {channel}'
+        })
+        
+    elif cmd == '/leave':
+        if len(parts) > 1:
+            channel = parts[1]
+            if not channel.startswith('#'):
+                channel = '#' + channel
+            send_json(client_socket, {
+                'action': 'command',
+                'message': f'/leave {channel}'
+            })
+        else:
+            send_json(client_socket, {
+                'action': 'command',
+                'message': '/leave'
+            })
+            
+    elif cmd == '/list':
+        send_json(client_socket, {
+            'action': 'command',
+            'message': '/list'
+        })
+        
+    elif cmd == '/who' and len(parts) > 1:
+        channel = parts[1]
+        if not channel.startswith('#'):
+            channel = '#' + channel
+        send_json(client_socket, {
+            'action': 'command',
+            'message': f'/who {channel}'
+        })
+        
+    elif cmd == '/pm' and len(parts) > 2:
+        target = parts[1]
+        message = ' '.join(parts[2:])
+        send_json(client_socket, {
+            'action': 'message',
+            'message': f'/pm {target} {message}'
+        })
+        
+    elif cmd == '/help':
+        help_text = """
+Available commands:
+/join <channel> - Join a channel
+/leave [channel] - Leave current or specified channel
+/list - List all channels
+/who <channel> - List users in a channel
+/pm <user> <message> - Send private message
+/help - Show this help
+/exit - Quit the program
+"""
+        print_system_message(help_text.strip())
+        
+    elif cmd == '/exit':
+        client_socket.close()
+        print("\nGoodbye!")
+        sys.exit(0)
+        
+    else:
+        print_system_message("Unknown command. Type /help for available commands.")
 
 def chat_loop(username, color_code=15):
     global current_username, current_color_code
     current_username = username
     current_color_code = color_code
-    print("\nType your messages below. Type '/exit' to quit.")
-    print("To join a channel: '/join #channelname'")
-    print("To leave current channel: '/leave'")
-    print("To list channels: '/list'\n")
+    
+    print("\033[1;37m\nWelcome to our IRC Channel.\033[0m")
+    print("\nType your messages below. Type '\033[31m/help\033[0m' for command list.")
+    display_prompt()
     
     while True:
         try:
-            prompt = f"\033[1;38;5;{color_code}m{username} >\033[0m "
-            sys.stdout.write(prompt)
-            sys.stdout.flush()
+            # We use readline to allow for proper line editing
             msg = sys.stdin.readline().strip()
             
             if not msg:
+                display_prompt()
                 continue
                 
-            if msg.lower() == '/exit':
-                client_socket.close()
-                print("\nGoodbye!")
-                sys.exit(0)
+            if msg.startswith('/'):
+                handle_command(msg)
+            else:
+                message_data = {
+                    'action': 'message',
+                    'message': msg,
+                    'channel': current_channel
+                }
+                send_json(client_socket, message_data)
                 
-            message_data = {
-                'action': 'message' if not msg.startswith('/') else 'command',
-                'message': msg
-            }
-            send_json(client_socket, message_data)
+            display_prompt()
             
         except KeyboardInterrupt:
             print("\nUse '/exit' to quit properly")
+            display_prompt()
         except Exception as e:
             print(f"\nConnection error: {e}")
             client_socket.close()
