@@ -28,6 +28,33 @@ login_lock = threading.Lock()
 registration_response = None
 registration_lock = threading.Lock()
 
+# ===== MESSAGE FORMATTING =====
+def format_channel_msg(sender, channel, message, color=15):
+    return f"\033[38;5;{color}m{sender}\033[0m [\033[1;34m{channel}\033[0m] {message}"
+
+def format_private_msg(sender, message):
+    return f"\033[1;35m[PM from {sender}]\033[0m {message}"
+
+def format_system_msg(message):
+    return f"\033[90m[•] {message}\033[0m"
+
+def format_server_msg(message):
+    return f"\033[1;33m[Server]\033[0m {message}"
+
+# ===== TERMINAL HELPERS =====
+def clear_line():
+    """Clear current terminal line"""
+    sys.stdout.write('\r\033[K')
+    sys.stdout.flush()
+
+def display_prompt():
+    """Show input prompt with current channel"""
+    if current_channel:
+        prompt = f"\033[1;37m[{current_channel}]\033[0m > "
+    else:
+        prompt = "\033[1;37m>\033[0m "
+    sys.stdout.write(prompt)
+    sys.stdout.flush()
 def show_channel_selection(available_channels):
     print("\nAvailable Channels:")
     for i, channel in enumerate(available_channels, 1):
