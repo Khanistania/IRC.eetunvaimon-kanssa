@@ -1,10 +1,92 @@
-@ -1,6 +1,41 @@
-# IRC.eetunvaimon-kanssa
-moi riku 
+# IRC-serverin parantelu
+Moi riku 
 
-git config --global user.name " "
 
-git config --global user.email " "
+# HUOM!
+
+- IRC Ohjelma toimii parhaiten Windows 11 käyttöjärjestelmällä. Muilla käyttljrjestelmillä esimerkiksi värit saattavat toimia huonosti.
+# Suunnitelma
+
+Tavoitteena on saada lisättyä serverille jotain alla mainituista ominaisuuksista:
+
+-Kirjautuminen
+
+-Rekisteröinti
+
+-Channelit/Kanavat
+
+-Komennot
+
+-Adminit
+
+
+# Ohjeet
+
+Server toimii komentokehotteessa (CMD)
+
+
+Laita server.py ja client.py HOST:iin oma ipv4 osoite   HOST = "oma_ip_osoite"
+
+
+# Ominaisuudet
+
+Kun liityt serverille, saat valinnat rekisteröityä, kirjautua ja poistua. Kun olet päässyt onnistuneesti serverille sisään, voit kirjoittaa ja vastata chattiin.
+/help komennolla löytyy lista eri komentoja. Tällä hetkellä vain osa toimii, mm voit liittyä ja poistua eri kanavoille. Myös /exit toimii kaikissa tilanteissa.
+
+# Rekisteröinti
+
+Rekisteröityessä valitaan nimi, salasana sekä nimen väri. Nämä kaikki tiedot tallentuvat users.json tiedostoon.
+Jos "Make" niminen käyttäjä on jo tehty, sen nimistä käyttäjää ei voi enään rekisteröidä.
+
+# Kirjautuminen
+
+Kirjautuessa kysytään käyttäjänimi ja salasana. Jos ne ovat väärin, pyydetään ne laittamaan uudestaan. 
+Nimen väri tallentuu aina käyttäjälle joten se on aina sama. Väriä, nimeä tai salasanaa ei voi muuttaa jälkeenpäin.
+Rekisteröityessä ja kirjautuessa salasana on aina piilotettu "********" merkillä.
+Jos "Make" on jo kirjautunut sisään, toisella laitteella ei voi kirjautua saman aikaisesti samalle käyttäjälle.
+
+# Chat
+
+Chatissa kaikkien käyttäjien nimet näkyy muille käyttäjille ja itselle käyttäjän valitsemalla värillä. Voit liittyä eri kanavoille (Tällä hetkellä #general ja #random).
+Jos olet #random kanavalla, vain sillä kanavalla olevat käyttäjän näkevät viestisi. Jos poistut kanavalta ja liityt takaisin niin vanhat keskustelut ovat poistuneet.
+Chattiin tulee aina ilmoitus uuden käyttäjän liittymisestä/poistumisesta.
+
+# Tehtävä, tekijät ja yhteenveto
+
+Tehtävänä oli parannella tunnilla tehtyä IRC-palvelinta. Tekijät on Hakan Seppä ja Veeti Myllymäki. Alkuun lähdimme tekemään sillä ajatuksella, että Hakan keskittyy serveriin, 
+ja Veeti keskittyy client puoleen. Lopulta päädyimme siihen, että on helpompi jos molemmat keskittyvät molempiin tiedostoihin, ja ottavat tavoitteeksi lisätä aina jonkin tietyn ominaisuuden. Vähäisen tuntimäärän takia ei ole tarkkaa muistikuvaa mitä olemme tarkalleen tehneet, mutta molemmat ovat tehneet korjauksia ja lisäyksiä laajasti kokonaisuuteen.
+Tavoitteesta saimme kaiken muun tehtyä paitsi adminit, joten kokonaisuus on ihan kattava. Projekti venyi sen verran pitkäksi, että tarkkoja aika arvioita ei ole, mutta projekti 
+saatiin kuitenkin valmiiksi.
+
+# Parantelut
+
+Palvelinta voisi vielä parannella:
+
+-Adminien lisäys
+
+-Loput komennot toimimaan
+
+-Lisää kanavia
+
+-Nimen, Salasanan ja värin vaihtaminen
+
+-Chattien tallentuminen
+
+Paranteluja löytyy varmasti loputtomiin, mutta saimme mielestäni aikaan toimivan ja monipuolisen kokoonaisuuden.
+
+
+
+
+# Kuka teki mitä?
+
+- Suurimman osan server.py teki Hakan ja client.py:n teki Veeti. Jos tarvitsee selvennystä mitä tehtiin niin saa kysyä :)
+
+
+
+**Alta löytyy vanhoja sekalaisia muistiinpanoja**
+
+
+
 # VIIMEKSI TEHTY VALMIIKSI
 
 - Server ja client korjattu siten että värit, kirjautuminen ja chatti näkyy molemmille, TOIMII, kanavat ja adminit ja modit tehty mutta ei voi vielä käyttää.
@@ -14,8 +96,6 @@ git config --global user.email " "
 
 # Suunnitelmat IRC:lle
 
-**IRC Chatin aloitus**
-
 -   Viestin lähettäjä näkyy omana nimenä eikä ip porttina
 
 -   Kun käynnistää irc:n niin tulee input millä voi päättää oman nimen.
@@ -23,11 +103,7 @@ git config --global user.email " "
 -   Jos mahdollista niin käyttäjän nimi näkyy korostetulla värillä jonka jokainen käyttäjä valitsee itse
     samalla kun valitsee nimen.
 
--   Chatin taustan väriä voi muokata(Pitäisi onnistua kokonaan client puolella)
-
--   *Aika arvio noin 30min-1h*
-    
--- Tehtiin client puolelle käyttäjän nimivalinta sekä värivalinta, ne ovat molemmat client puolella     valmiita. Aikaa meni noin 2.5h--
+-- Tehtiin client puolelle käyttäjän nimivalinta sekä värivalinta, ne ovat molemmat client puolella valmiita. Aikaa meni noin 2.5h--
 
 
 **IRC Chatin kanava hommelipomppeli**
@@ -36,18 +112,9 @@ git config --global user.email " "
 
 - Komennot ja admin jutut ei ole rekisteröity mutta pystyy valitsemaan client puolella
 
-- Admin tunnukset
-
-- kolme eri käyttäjää joista yksi on admini
 
 **14.10**
 
-- Korjattiin chatti formattointia, Ja samalla myös se että kirjautuminen kahdella käyttäjällä ei ole enään ongelma.
+- Korjattiin chatti formatointia, Ja samalla myös se että kirjautuminen kahdella käyttäjällä ei ole enään ongelma.
 
-
-
-
--JATKOA
-
--channelit, komennot ja adminit toimimaan
 

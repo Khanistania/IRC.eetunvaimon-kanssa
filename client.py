@@ -7,55 +7,54 @@ import msvcrt
 import os
 from collections import defaultdict
 
-# ===== NETWORK CONFIGURATION =====
-HOST = "10.232.2.253"  # Change to your server IP if needed
+# ===== Verkkoasetukset =====
+HOST = "10.232.2.226"  # Tähän menee oman, serverin tai localhost ipv4 
 PORT = 6668
 
-# Debug mode - set to False in production
+# Debugaus työkalu
 DEBUG = False
 
-# Global state
-current_username = None
-current_color_code = 15
-current_channel = None  # Track current channel
-user_channels = set()   # Track all channels user is in
+# Globaaleja muuttujia
+current_username = None  # Nykyinen käyttäjänimi
+current_color_code = 15  # Nykyinen värikoodi
+current_channel = None   # Nykyinen kanava
+user_channels = set()    # Käyttäjän kanavat
 
-# Event and lock for server responses
-registration_event = threading.Event()
-login_event = threading.Event()
-login_response = None
-login_lock = threading.Lock()
-registration_response = None
-registration_lock = threading.Lock()
+# Eventtien tapahtumien tarkistaminen
+registration_event = threading.Event()  # Rekisteröinnin odotustapahtuma
+login_event = threading.Event()         # Kirjautumisen odotustapahtuma
+login_response = None                  # Kirjautumisvastaus
+login_lock = threading.Lock()          # Kirjautumisen lukko
+registration_response = None           # Rekisteröintivastaus
+registration_lock = threading.Lock()   # Rekisteröinnin lukko
 
-# ===== MESSAGE FORMATTING =====
+# ===== Tekstin muotoilu =====
+
+# Värikoodit tekstin muotoiluun (esim. "\033[38;5;{color}m{sender}\033[0m" näyttää värit CMD:ssä)
 def format_channel_msg(sender, channel, message, color=15):
+    """Muotoilee kanavaviestejä"""
     return f"\033[38;5;{color}m{sender}\033[0m [\033[1;34m{channel}\033[0m] {message}"
 
 def format_private_msg(sender, message):
+    """Muotoilee yksityisviestejä"""
     return f"\033[1;35m[PM from {sender}]\033[0m {message}"
 
 def format_system_msg(message):
+    """Muotoilee järjestelmäviestejä"""
     return f"\033[90m[•] {message}\033[0m"
 
 def format_server_msg(message):
+    """Muotoilee palvelinviestejä"""
     return f"\033[1;33m[Server]\033[0m {message}"
 
-# ===== TERMINAL HELPERS =====
+# ===== Komentorivin toiminnot =====
 def clear_line():
-    """Clear current terminal line"""
+    """Tyhjentää nykyisen komentorivin"""
     sys.stdout.write('\r\033[K')
     sys.stdout.flush()
 
-def display_prompt():
-    """Show input prompt with current channel"""
-    if current_channel:
-        prompt = f"\033[1;37m[{current_channel}]\033[0m > "
-    else:
-        prompt = "\033[1;37m>\033[0m "
-    sys.stdout.write(prompt)
-    sys.stdout.flush()
 def show_channel_selection(available_channels):
+    """Näyttää saatavilla olevat kanavat valittavaksi"""
     print("\nAvailable Channels:")
     for i, channel in enumerate(available_channels, 1):
         print(f"{i}. {channel}")
@@ -69,29 +68,29 @@ def show_channel_selection(available_channels):
         print("Invalid input. Please enter a number.")
 
 def debug_print(message):
+    """Tulostaa debug-viestin jos DEBUG on True"""
     if DEBUG:
         print(f"DEBUG: {message}")
 
 def clear_current_line():
-    """Clear the current line in terminal"""
+    """Tyhjentää nykyisen rivin terminaalissa"""
     try:
-        # Get terminal width safely with fallback
         columns = os.get_terminal_size().columns
     except (AttributeError, OSError):
-        columns = 80  # Default fallback width
+        columns = 80  
         
     sys.stdout.write('\r' + ' ' * (columns - 1) + '\r')
     sys.stdout.flush()
 
 def print_system_message(message):
-    """Print a system message without interfering with input prompt"""
+    """Tulostaa järjestelmäviestin häiritsemättä syötekenttää"""
     clear_current_line()
     print(f"\r\033[1;36mSystem:\033[0m {message}")
     if current_username:
         display_prompt()
 
 def display_prompt():
-    """Display the appropriate input prompt based on current state"""
+    """Näyttää syötekentän nykyisen tilanteen mukaan"""
     if current_channel:
         prompt = f"\033[1;38;5;{current_color_code}m{current_username} [{current_channel}]>\033[0m "
     else:
@@ -100,7 +99,7 @@ def display_prompt():
     sys.stdout.flush()
 
 def receive_messages(client_socket):
-    """Receive messages from the server"""
+    """Vastaanottaa viestejä palvelimelta"""
     global registration_response, login_response, current_username, current_color_code, current_channel, user_channels
     
     buffer = ""
@@ -122,34 +121,34 @@ def receive_messages(client_socket):
                         print(f"DEBUG: Parsed response: {response}")
                     debug_print(f"Received: {response}")
                     
-                    # Registration response
+                    # Käsittelee rekisteröintivastauksen
                     if response.get('action') == 'register':
                         with registration_lock:
                             registration_response = response
                             registration_event.set()
                     
-                    # Login response
+                    # Käsittelee kirjautumisvastauksen
                     elif response.get('action') == 'login':
                         with login_lock:
                             login_response = response
                             login_event.set()
                     
-                    # Error messages
+                    # Käsittelee virheviestit
                     elif response.get('status') == 'error':
                         print_system_message(f"Error: {response.get('message')}")
                     
-                    # System messages
+                    # Käsittelee järjestelmäviestit
                     elif response.get('action') == 'system':
                         print_system_message(response.get('message'))
                     
-                    # Channel messages
+                    # Käsittelee kanavaviestejä
                     elif response.get('action') == 'message':
                         from_user = response.get('from')
                         message = response.get('message')
                         color_code = response.get('color', 15)
                         channel = response.get('channel')
                         
-                        # Format the message display
+                        # Muotoilee viestin näyttämisen
                         if channel:
                             prefix = f"\033[1;38;5;{color_code}m{from_user} [{channel}]>\033[0m"
                         else:
@@ -159,7 +158,7 @@ def receive_messages(client_socket):
                         print(f"\r{prefix} {message}")
                         display_prompt()
                     
-                    # Private messages
+                    # Käsittelee yksityisviestit
                     elif response.get('action') == 'private_message':
                         from_user = response.get('from')
                         message = response.get('message')
@@ -169,7 +168,7 @@ def receive_messages(client_socket):
                         print(f"\r\033[1;35mPM from {from_user}>\033[0m {message}")
                         display_prompt()
                     
-                    # Channel join/leave notifications
+                    # Käsittelee kanavapäivitykset (liittyminen/poistuminen)
                     elif response.get('action') == 'channel_update':
                         channel = response.get('channel')
                         if response.get('type') == 'join':
@@ -189,7 +188,7 @@ def receive_messages(client_socket):
             print(f"\nConnection error: {e}")
             sys.exit()
 
-# Create socket and connect
+# Luo socket ja yhdistä palvelimeen
 client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 try:
     client_socket.connect((HOST, PORT))
@@ -197,12 +196,12 @@ except ConnectionRefusedError:
     print("Error: Could not connect to server.")
     exit(1)
 
-# Start receive thread
+# Käynnistä viestien vastaanottosäie
 thread = threading.Thread(target=receive_messages, args=(client_socket,))
 thread.daemon = True
 thread.start()
 
-# ===== COLOR DEFINITIONS =====
+# ===== VÄRIT =====
 colors = [
     ("Light Aqua", 6),
     ("Light Blue", 4),
@@ -212,10 +211,10 @@ colors = [
     ("Red", 9)
 ]
 
-# ===== USER AUTHENTICATION =====
+# ===== KÄYTTÄJÄTUNNISTUS =====
 
 def choose_action():
-    """Ask the user to choose to register or login"""
+    """Kysyy käyttäjältä haluaako hän rekisteröityä vai kirjautua"""
     while True:
         print("\n1. Register\n2. Login\n3. Exit")
         choice = input("Choose an option: ").strip()
@@ -224,7 +223,7 @@ def choose_action():
         print("Invalid choice. Please choose 1, 2, or 3.")
 
 def get_valid_username():
-    """Get a valid username from user"""
+    """Pyytää käyttäjältä kelvollisen käyttäjänimen"""
     while True:
         username = input("Choose your username (a-z, 0-9, max 12 chars): ").strip()
         if len(username) > 12:
@@ -236,7 +235,7 @@ def get_valid_username():
         return username
 
 def choose_color():
-    """Let user choose a color"""
+    """Antaa käyttäjän valita väri käyttäjänimelleen"""
     print("\nChoose a color for your username: ")
     for i, (color_name, code) in enumerate(colors):
         print(f"{i+1}. \033[1;38;5;{code}m{color_name}\033[0m")
@@ -252,28 +251,28 @@ def choose_color():
             print("Please enter a valid number")
 
 def get_hidden_password(prompt):
-    """Get password with asterisks displayed for each character (Windows only)"""
+    """Pyytää salasanan näyttäen tähtiä jokaisesta kirjaimesta (vain Windows)"""
     print(prompt, end="", flush=True)
     password = []
     while True:
-        char = msvcrt.getch()  # Read a single keypress
+        char = msvcrt.getch()  # Lukee näppäimen painalluksen
         char = char.decode('utf-8')
-        if char == '\r' or char == '\n':  # Enter key
-            print()  # Move to next line
+        if char == '\r' or char == '\n':  # Enter-näppäin
+            print()  # Siirtyy seuraavalle riville
             break
         elif char == '\b':  # Backspace
             if password:
-                password.pop()  # Remove last character
-                sys.stdout.write('\b \b')  # Move cursor back, overwrite with space, move back again
+                password.pop()  # Poistaa viimeisen kirjaimen
+                sys.stdout.write('\b \b')  # Siirtää kursorin taaksepäin ja korvaa merkin
                 sys.stdout.flush()
         else:
             password.append(char)
-            sys.stdout.write('*')  # Print asterisk
+            sys.stdout.write('*')  # Tulostaa tähden
             sys.stdout.flush()
     return ''.join(password)
 
 def send_json(sock, data):
-    """Safely send JSON data to a specific socket"""
+    """Lähettää JSON-datan turvallisesti määritetylle socketille"""
     try:
         payload = json.dumps(data) + '\n'
         if DEBUG:
@@ -289,6 +288,7 @@ def send_json(sock, data):
         return False
 
 def register():
+    """Käsittelee käyttäjän rekisteröinnin"""
     global registration_response
     while True:
         username = get_valid_username()
@@ -324,7 +324,7 @@ def register():
                 return None
 
 def login():
-    """Handle user login with channel selection"""
+    """Käsittelee käyttäjän kirjautumisen kanavavalinnan kanssa"""
     global login_response
     attempts = 0
     
@@ -355,7 +355,7 @@ def login():
             continue
             
         if response.get('status') == 'success':
-            # Show channel selection if available
+            # Näyttää kanavavalinnan jos saatavilla
             available_channels = response.get('available_channels', [])
             if available_channels:
                 print("\nAvailable Channels:")
@@ -386,10 +386,11 @@ def login():
     
     print("Too many failed attempts.")
     return None
-# ===== CHAT FUNCTIONALITY =====
+
+# ===== CHAT-TOIMINNOT =====
 
 def handle_command(command):
-    """Handle client-side commands"""
+    """Käsittelee asiakaspuolen komennot"""
     global current_channel
     
     parts = command.split()
@@ -464,6 +465,7 @@ Available commands:
         print_system_message("Unknown command. Type /help for available commands.")
 
 def chat_loop(username, color_code=15):
+    """Pääsilmukka chattitoiminnoille"""
     global current_username, current_color_code
     current_username = username
     current_color_code = color_code
@@ -474,7 +476,7 @@ def chat_loop(username, color_code=15):
     
     while True:
         try:
-            # We use readline to allow for proper line editing
+            # Käytetään readlinea oikean rivieditoinnin mahdollistamiseksi
             msg = sys.stdin.readline().strip()
             
             if not msg:
@@ -501,26 +503,27 @@ def chat_loop(username, color_code=15):
             client_socket.close()
             sys.exit(1)
 
-# ===== MAIN PROGRAM =====
+# ===== PÄÄOHJELMA =====
 def main():
+    """Pääohjelma joka käynnistää sovelluksen"""
     print(f"Connecting to {HOST}:{PORT}...")
     
     while True:
         action = choose_action()
         
-        if action == '1':  # Register
+        if action == '1':  # Rekisteröinti
             result = register()
             if result:
                 username, color_code = result
                 chat_loop(username, color_code)
                 
-        elif action == '2':  # Login
+        elif action == '2':  # Kirjautuminen
             result = login()
             if result:
                 username, color_code = result
                 chat_loop(username, color_code)
                 
-        elif action == '3':  # Exit
+        elif action == '3':  # Lopetus
             client_socket.close()
             print("\nGoodbye!")
             sys.exit(0)
